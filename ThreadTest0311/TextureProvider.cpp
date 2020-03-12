@@ -218,12 +218,13 @@ bool Cache::MakeRoomForNewEntry(long nSize)
         delete pImg;
         pImg = m_pHeadFree;
     }
-
+    //    qDebug() << "[CPU]"<< "free: " << m_sizeMemFree;
     return (m_sizeMemFree >= nSize);
 }
 
 ImageBase* Cache::Search(const char* id)
 {
+
     QMutexLocker lock(&m_mutex);
     QHash<const char*, ImageBase*>::const_iterator i = m_hash.find(id);
     ImageBase* pImg = nullptr;
@@ -279,7 +280,7 @@ ImageBase* Cache::Search(const char* id)
 QImage TextureFactory::image() const
 {
     return QImage(static_cast<const uchar*>(m_image->data), m_image->effectiveSize.width(), m_image->effectiveSize.height(),
-                  QImage::Format_RGBA8888_Premultiplied);
+        QImage::Format_RGBA8888_Premultiplied);
 }
 
 int TextureFactory::textureByteCount() const { return m_image->memSizeInBytes; }
@@ -335,12 +336,14 @@ TextureProviderPrivate::TextureProviderPrivate(const QString& path, int imgCache
 
 QQuickTextureFactory* TextureProviderPrivate::requestTexture(const QString& id, QSize* size, const QSize& /*requestedSize*/)
 {
+
     const cluster::resource::imgToRscEntry* pEntry = nullptr;
     QHash<QString, cluster::resource::imgToRscEntry*>::const_iterator i = m_hash.find(id);
     {
         if (i != m_hash.end()) {
             pEntry = i.value();
         } else {
+
             return nullptr;
         }
     }
@@ -352,6 +355,8 @@ QQuickTextureFactory* TextureProviderPrivate::requestTexture(const QString& id, 
 
     char sig[5];
     sig[4] = '\0';
+
+    //    qDebug() << "1";
 
     unsigned char* pBuf;
     pread(fd, sig, 4, pEntry->offsetImg);
@@ -389,7 +394,7 @@ QImage TextureProviderPrivate::requestImage(const QString& id, QSize* /*size*/, 
         CPUImage* image = static_cast<CPUImage*>(cpuImage.Search(pEntry->nameImage));
         if (image != nullptr) {
             img = QImage(static_cast<const uchar*>(image->data), image->effectiveSize.width(),
-                         image->effectiveSize.height(), image->effectiveSize.width() * 4, QImage::Format_RGBA8888_Premultiplied);
+                image->effectiveSize.height(), image->effectiveSize.width() * 4, QImage::Format_RGBA8888_Premultiplied);
             cpuImage.Remove(image);
         } else {
             char sig[5];
@@ -403,7 +408,7 @@ QImage TextureProviderPrivate::requestImage(const QString& id, QSize* /*size*/, 
                     qDebug() << "File error : " << pEntry->nameImage << "offsetImg = " << pEntry->offsetImg << "lengthImg = " << pEntry->lengthImg;
                 } else {
                     img = QImage(pBuf, pEntry->widthImg,
-                                 pEntry->heightImg, pEntry->widthImg * 4, QImage::Format_RGBA8888_Premultiplied);
+                        pEntry->heightImg, pEntry->widthImg * 4, QImage::Format_RGBA8888_Premultiplied);
                     //free(pBuf);
                 }
             }
@@ -445,6 +450,7 @@ TextureProvider& TextureProvider::instance()
 
 QQuickTextureFactory* TextureProvider::requestTexture(const QString& id, QSize* size, const QSize& requestedSize)
 {
+
     return pData->requestTexture(id, size, requestedSize);
 }
 
