@@ -40,6 +40,8 @@ bool TextureProviderScheduler::Run()
 
 void TextureProviderScheduler::Book(const std::vector<TextureProviderScheduler::preload_target>& targets)
 {
+    int res = -2;
+#if TEST_STACK
     qDebug() << "[Book2] ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~";
     {
         std::lock_guard<std::mutex> guard(mtx_lock);
@@ -47,70 +49,57 @@ void TextureProviderScheduler::Book(const std::vector<TextureProviderScheduler::
             m_list_target.push_back(i);
         }
     }
-    int res = -2;
 
     qDebug() << "[Book2] wake!!";
     res = pthread_cond_signal(&m_thread_cond);
     qDebug() << "[Book2] wake!! end ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~";
+#endif
+
+#if TEST_QUEUE
+    qDebug() << "[Book2] ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~";
+    {
+        std::lock_guard<std::mutex> guard(mtx_lock);
+        for (auto i : targets) {
+            m2_list_target.push(i);
+        }
+    }
+
+    qDebug() << "[Book2] wake!!";
+    res = pthread_cond_signal(&m_thread_cond);
+    qDebug() << "[Book2] wake!! end ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~";
+#endif
 }
 
 void TextureProviderScheduler::Book(const preload_target& targets)
 {
+    int res = -2;
+
+#if TEST_STACK
     qDebug() << "[Book]";
     {
         std::lock_guard<std::mutex> guard(mtx_lock);
         m_list_target.push_back(targets);
     }
 
-    int res = -2;
+    qDebug() << "[Book] wake!!";
+    res = pthread_cond_signal(&m_thread_cond);
+    qDebug() << "[Book] wake!! end";
+#endif
+
+#if TEST_QUEUE
+    qDebug() << "[Book]";
+    {
+        std::lock_guard<std::mutex> guard(mtx_lock);
+        m2_list_target.push(targets);
+    }
 
     qDebug() << "[Book] wake!!";
     res = pthread_cond_signal(&m_thread_cond);
     qDebug() << "[Book] wake!! end";
+#endif
 }
 
-//void* TextureProviderScheduler::MainThread(void* _p_data)
-//{
-//    //    qDebug()  <<"thread enterance";
-//    qDebug() << "[]";
-//    TextureProviderScheduler* p_hndl = static_cast<TextureProviderScheduler*>(_p_data);
-
-//    int res = -2;
-//    //    res = pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, nullptr);
-
-//    pthread_t id;
-//    // 현재 쓰레드의 id 를 얻어서 출력합니다
-//    id = pthread_self();
-
-//    while (true) {
-//        if (p_hndl->m_list_target.size()) {
-//            std::string path, extension;
-//            int start, end;
-
-//            {
-//                std::lock_guard<std::mutex> guard(mtx_lock);
-//                auto target = p_hndl->m_list_target.back();
-//                p_hndl->m_list_target.pop_back();
-//                std::tie(path, extension, start, end) = target;
-//                qDebug() << "[MainThread] start path:" << path.c_str()
-//                         << ", extenstion: " << extension.c_str()
-//                         << ", start: " << start
-//                         << ", end : " << end;
-//            }
-
-//            for (int i = start; i <= end; i++) {
-//                TextureProvider::instance().requestTexture(
-//                    QString("%1%2.%3").arg(QString::fromStdString(path)).arg(QString::number(i).rightJustified(3, '0')).arg(QString::fromStdString(extension)), {}, {});
-//                //                qDebug()  <<"[TEXPRO_SCH] target: " << QString("%1%2.%3").arg(QString::fromStdString(path)).arg(QString::number(i).rightJustified(3, '0')).arg(QString::fromStdString(extension));
-//            }
-//            qDebug() << "[MainThread] finish";
-
-//        } else {
-//            qDebug() << "[MainThread] sleep";
-//            res = pthread_cond_wait(&p_hndl->m_thread_cond, &p_hndl->m_thread_mutex);
-//        }
-//    }
-//}
+#if TEST_STACK
 void* TextureProviderScheduler::MainThread(void* _p_data)
 {
     //    qDebug()  <<"thread enterance";
@@ -154,3 +143,50 @@ void* TextureProviderScheduler::MainThread(void* _p_data)
         }
     }
 }
+#endif
+
+#if TEST_QUEUE
+void* TextureProviderScheduler::MainThread(void* _p_data)
+{
+    //    qDebug()  <<"thread enterance";
+    qDebug() << "[MainThread]";
+    TextureProviderScheduler* p_hndl = static_cast<TextureProviderScheduler*>(_p_data);
+
+    int res = -2;
+    res = pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, nullptr);
+
+    pthread_t id;
+    // 현재 쓰레드의 id 를 얻어서 출력합니다
+    id = pthread_self();
+
+    while (true) {
+        if (p_hndl->m2_list_target.size()) {
+            std::string path, extension;
+            int start, end;
+
+            {
+                std::lock_guard<std::mutex> guard(mtx_lock);
+                auto target = p_hndl->m2_list_target.front();
+                p_hndl->m2_list_target.pop();
+                std::tie(path, extension, start, end) = target;
+                qDebug() << "[MainThread] start path:" << path.c_str()
+                         << ", extenstion: " << extension.c_str()
+                         << ", start: " << start
+                         << ", end : " << end;
+            }
+
+            for (int i = start; i <= end; i++) {
+                bool bRes = false;
+                bRes = TextureProvider::instance().requestTexture(
+                    QString("%1%2.%3").arg(QString::fromStdString(path)).arg(QString::number(i).rightJustified(3, '0')).arg(QString::fromStdString(extension)), nullptr, {});
+                qDebug() << "[TEXPRO_SCH] target: " << QString("%1%2.%3%4").arg(QString::fromStdString(path)).arg(QString::number(i).rightJustified(3, '0')).arg(QString::fromStdString(extension)).arg(bRes);
+            }
+            qDebug() << "[MainThread] finish";
+
+        } else {
+            qDebug() << "[MainThread] sleep";
+            res = pthread_cond_wait(&p_hndl->m_thread_cond, &p_hndl->m_thread_mutex);
+        }
+    }
+}
+#endif

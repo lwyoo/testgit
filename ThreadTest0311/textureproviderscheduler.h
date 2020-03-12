@@ -3,14 +3,16 @@
 
 #include <pthread.h>
 
+#include <QLoggingCategory>
 #include <memory>
+#include <queue>
 #include <tuple>
 #include <vector>
 
-#include <QLoggingCategory>
-
 //Q_DECLARE_LOGGING_CATEGORY( texproscheduler );
 //#include <dlt/dlt.h>
+#define TEST_STACK 0
+#define TEST_QUEUE 1
 
 class TextureProviderScheduler {
 public:
@@ -37,7 +39,10 @@ private:
 
 private:
     //    QVector<QStringList> m_list_target;
+#if TEST_STACK
     std::vector<preload_target> m_list_target;
+#endif
+    std::queue<preload_target> m2_list_target;
 };
 
 #endif // TEXTUREPROVIDERSCHEDULER_H
